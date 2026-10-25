@@ -1,0 +1,15 @@
+# 音源实现永不进 git（合规隔离，见 README「添加音源」）
+sources_local/
+
+# 本地环境与数据
+.venv/
+__pycache__/
+*.pyc
+data/
+config.toml
+
+# playwright 浏览器内核（项目本地）
+.pw-browsers/
+
+# musicdl 搜索产物
+musicdl_outputs/

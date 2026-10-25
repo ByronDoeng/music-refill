@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>music-refill · 云盘补歌</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span>music-refill</div>
+    <div class="userbox">
+      <div id="account" class="chip">检查登录中…</div>
+      <button id="btn-logout" class="btn ghost small hidden">退出登录</button>
+    </div>
+  </header>
+
+  <!-- ① 登录 -->
+  <section id="login-card" class="card hidden">
+    <h2>登录</h2>
+    <div class="row">
+      <button id="btn-browser-login" class="btn primary">一键登录（弹出官方浏览器窗口）</button>
+      <span id="browser-hint" class="muted"></span>
+    </div>
+    <div class="divider">或 手动 Cookie 登录（扫码/一键登录被风控时的兜底）</div>
+    <ol class="steps muted">
+      <li>用浏览器打开 <b>music.163.com</b> 并登录你的账号</li>
+      <li>按 <b>F12</b> → Network/网络 → 刷新页面 → 点第一个 <b>music.163.com</b> 请求</li>
+      <li>在 Request Headers 里复制整串 <b>Cookie</b>（应包含 MUSIC_U=…）粘贴到下面</li>
+    </ol>
+    <textarea id="cookie-input" rows="3" placeholder="MUSIC_U=xxx; __csrf_token=xxx; ..."></textarea>
+    <div class="row"><button id="btn-cookie-login" class="btn">用 Cookie 登录</button>
+      <span id="cookie-hint" class="muted"></span></div>
+    <div class="divider">或 脚本扫码（网易 8821 风控下大概率被拦，仅备用）</div>
+    <div class="qr-box"><img id="qr-img" alt="登录二维码" hidden>
+      <div id="qr-hint" class="muted">生成中…</div></div>
+  </section>
+
+  <!-- ② 歌单 -->
+  <section id="pl-card" class="card hidden">
+    <h2>① 选择要扫描的歌单</h2>
+    <p class="muted">「我喜欢的音乐」默认勾选、可取消；可任意组合。</p>
+    <div id="pl-list" class="pl-list">加载中…</div>
+    <div class="row">
+      <button id="btn-scan" class="btn primary">② 扫描缺口</button>
+      <span id="scan-hint" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- ③ 缺口清单 -->
+  <section id="gap-card" class="card hidden">
+    <h2>③ 缺口清单 <span id="gap-count" class="muted small"></span></h2>
+    <div id="res-summary" class="stats"></div>
+    <div class="table-box"><table id="gap-table">
+      <thead><tr><th>选</th><th>#</th><th>歌曲</th><th>歌手</th><th>专辑</th><th>时长</th><th>原因</th><th>云盘疑似文件</th><th>歌单</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="row">
+      <button id="btn-sel-all" class="btn ghost">全选</button>
+      <button id="btn-sel-none" class="btn ghost">全不选</button>
+      <a id="report-link" class="btn ghost" href="#" download>导出报告</a>
+      <button id="btn-start-match" class="btn primary" disabled>④ 开始寻找匹配音源</button>
+      <span id="gap-hint" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- ④ 匹配确认 -->
+  <section id="match-card" class="card hidden">
+    <h2>④ 音源匹配 · 人工确认</h2>
+    <div id="match-progress" class="muted">准备中…</div>
+    <div class="table-box"><table id="match-table">
+      <thead><tr><th style="width:36px">选</th><th class="col-song">缺口歌曲</th><th class="col-cand">候选（下拉切换，选认可的版本）</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="row">
+      <button id="btn-download" class="btn primary" disabled>⑤ 下载并上传这批（后台执行）</button>
+      <button id="btn-skip" class="btn ghost">跳过本批 →</button>
+      <span id="match-hint" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- ⑤ 后台进度 -->
+  <section id="progress-card" class="card hidden">
+    <h2>⑤ 后台下载/上传</h2>
+    <div class="bar"><i id="prog-fill"></i></div>
+    <div id="prog-text" class="muted small">空闲</div>
+    <div id="prog-results" class="small"></div>
+    <div class="row">
+      <button id="btn-clear-cache" class="btn ghost">清除本地缓存（删除已下载文件）</button>
+      <span id="clear-hint" class="muted small"></span>
+    </div>
+  </section>
+
+  <footer class="muted foot">按需工具 · 关掉服务即无任何后台行为 · 音源仅本地加载 · 结果先经人工确认</footer>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

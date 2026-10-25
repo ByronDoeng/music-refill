@@ -1,0 +1,20 @@
+# 复制为 config.toml 后生效（config.toml 被 gitignore，不入库）
+
+[server]
+host = "127.0.0.1"
+port = 18123
+
+[scan]
+include_liked = true        # 必含"我喜欢的音乐"
+playlist_ids = []           # 额外固定扫描的歌单 ID（网页里可临时勾选）
+quality = "flac"            # 音质上限: flac | 320 | 128
+limit = 50                  # 单次上传上限
+sleep_min = 3               # 每首间隔随机区间（秒）
+sleep_max = 10
+
+[paths]
+data_dir = "data"           # cookie、报告、SQLite 所在目录
+
+# 音源 fallback 顺序（对应 sources_local/ 里的文件名，M2 生效）
+[sources]
+order = []
