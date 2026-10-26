@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# 测试专用：Starlette 新版 TestClient 需要 httpx2；旧版可用 httpx 兼容。
+httpx2>=2.0
+pytest>=8.0

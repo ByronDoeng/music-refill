@@ -1,8 +1,8 @@
-"""网易云音乐客户端：会话（扫码登录/cookie 复用）与 M1 所需只读接口。
+"""网易云音乐客户端：会话（扫码/本机浏览器/Cookie）与只读接口。
 
 只封装本项目用到的最小接口集，全部是"登录后可看"的数据：
 登录二维码、账号信息、用户歌单、歌单详情、歌曲详情（fee/privilege）、云盘列表。
-上传接口在 M3 由 uploader 模块实现，不放在这里。
+写接口（上传）在 netease/cloud_upload.py，本模块保持只读。
 """
 from __future__ import annotations
 
@@ -37,10 +37,22 @@ class Client:
         self.session = requests.Session()
         self.session.headers["User-Agent"] = UA
         self.session.headers["Referer"] = "https://music.163.com/"
-        # 首次访问拿匿名 cookie（__csrf_token 等）
-        self.session.get(f"{BASE}/", timeout=15)
+        self._bootstrapped = False
         if cookie_path and cookie_path.exists():
             self._load_cookies()
+
+    def _bootstrap(self) -> None:
+        """首次真正请求前拿匿名 cookie（__csrf_token 等）。
+
+        不在 __init__ 里联网：服务启动、测试和 doctor 不应被网络阻塞。
+        """
+        if self._bootstrapped:
+            return
+        self._bootstrapped = True
+        try:
+            self.session.get(f"{BASE}/", timeout=10)
+        except requests.RequestException as e:
+            log.warning("bootstrap request failed: %s", str(e)[:120])
 
     # ---------- 会话 ----------
 
@@ -168,7 +180,7 @@ class Client:
         out: list[dict] = []
         offset, limit = 0, 1000
         while True:
-            data = self._weapi("/weapi/cloud/get", {"limit": limit, "offset": offset})
+            data = self.call_ws("/weapi/cloud/get", {"limit": limit, "offset": offset})
             items = data.get("data") or []
             for it in items:
                 ss = it.get("simpleSong") or {}
@@ -181,12 +193,29 @@ class Client:
                         "file_name": it.get("fileName") or "",
                         "bitrate": it.get("bitrate") or 0,
                         "file_size": it.get("fileSize") or 0,
+                        "md5": it.get("md5") or "",
                     }
                 )
             total = data.get("count", 0)
             offset += limit
             if offset >= total or not items:
                 return out
+
+    def cloud_find(self, song_id: int = 0, md5: str = "", file_name: str = "") -> dict | None:
+        """上传后校验：按 songId / md5 / 文件名在云盘列表里找到刚上传的文件。
+
+        网易的 `pub/v2` 是异步索引，必要时调用方自行重试。这里只做一次全量查询；
+        云盘通常几百到几千首，一次拉取比逐页搜索更稳定。
+        """
+        target_name = (file_name or "").strip().lower()
+        for item in self.cloud_items():
+            if song_id and int(item.get("songId") or 0) == int(song_id):
+                return item
+            if md5 and (item.get("md5") or "").lower() == md5.lower():
+                return item
+            if target_name and (item.get("file_name") or "").strip().lower() == target_name:
+                return item
+        return None
 
     def playable_check(self, song_ids: list[int]) -> dict[int, dict]:
         """播放链接终审：/{'id': {'playable': bool, 'trial': bool}}。
@@ -195,6 +224,7 @@ class Client:
         weapi 版本对该请求返回 400 参数错误（实测）。
         url 为空=不可播；带 freeTrialInfo=仅 30s 试听；有 url=完整可播。
         """
+        self._bootstrap()
         out: dict[int, dict] = {}
         for chunk in _chunked(song_ids, 50):
             r = self.session.get(
@@ -217,14 +247,28 @@ class Client:
         return out
 
     def search_songs(self, keyword: str, limit: int = 10) -> list[dict]:
-        """站内搜索（明文 cloudsearch 接口）：[{id, name, artists, album, fee, duration_ms}]。"""
-        r = self.session.get(
-            f"{BASE}/api/cloudsearch/pc",
-            params={"s": keyword, "type": 1, "limit": limit},
-            timeout=20,
-        )
-        r.raise_for_status()
-        data, _ = json.JSONDecoder().raw_decode(r.text)
+        """站内搜索（weapi cloudsearch）：[{id, name, artists, album, fee, duration_ms}]。
+
+        明确用 weapi：明文 GET 在老接口下线后不稳定，且搜索结果要参与打分，
+        不能因为一次 460/风控就整首匹配失败。
+        """
+        payload = {"s": keyword, "type": 1, "limit": max(1, min(limit, 30)), "offset": 0, "total": True}
+        # 兼容旧网关：部分账号/节点只认 pc 路径。第一个路径异常时也必须降级，
+        # 否则一次 460/风控就会让整首匹配失败；若两个路径都异常才抛出最后一个错误。
+        data = None
+        last_error: Exception | None = None
+        for path in ("/weapi/cloudsearch/get/web", "/weapi/cloudsearch/pc"):
+            try:
+                candidate = self.call_ws(path, payload)
+            except Exception as e:
+                last_error = e
+                log.warning("cloudsearch %s failed: %s", path, str(e)[:120])
+                continue
+            data = candidate
+            if (candidate.get("result") or {}).get("songs"):
+                break
+        if data is None:
+            raise last_error or RuntimeError("网易曲库搜索接口不可用")
         out = []
         for s in (data.get("result") or {}).get("songs") or []:
             out.append(
@@ -239,9 +283,24 @@ class Client:
             )
         return out
 
+    def song_detail(self, song_id: int) -> dict | None:
+        rows = self.song_details([int(song_id)])
+        return rows[0] if rows else None
+
+    def playlist_all_tracks(self, playlist_id: int) -> list[dict]:
+        """歌单曲目（含顺序与加入时间），供“按歌名补歌/去重”使用。
+
+        `/weapi/v6/playlist/detail` 只给 trackIds；歌曲详情需再查一次。
+        """
+        ids = self.playlist_track_ids(playlist_id)
+        details = self.song_details(ids) if ids else []
+        by_id = {s.get("id"): s for s in details}
+        return [by_id[i] for i in ids if i in by_id]
+
     # ---------- 请求内核 ----------
 
     def _weapi(self, path: str, payload: dict, timeout: int = 30) -> dict:
+        self._bootstrap()
         csrf = self.session.cookies.get("__csrf_token", default="")
         payload = {**payload, "csrf_token": csrf, "csrfToken": csrf}
         # api-enhanced 约定：模块里写 /api/...，框架按加密方式改写前缀；
@@ -251,6 +310,10 @@ class Client:
         resp = self.session.post(f"{BASE}{path}", data=weapi.encrypt(payload), timeout=timeout)
         resp.raise_for_status()
         return resp.json()
+
+    def call_ws(self, path: str, payload: dict, timeout: int = 30) -> dict:
+        """weapi 的公开别名：后续服务层不要直接调用私有 `_weapi`。"""
+        return self._weapi(path, payload, timeout=timeout)
 
 
 def qr_png_data_url(img) -> str:

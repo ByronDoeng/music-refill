@@ -1,15 +1,19 @@
-# 音源实现永不进 git（合规隔离，见 README「添加音源」）
-sources_local/
-
 # 本地环境与数据
 .venv/
 __pycache__/
 *.pyc
 data/
 config.toml
+.pytest_cache/
+*.egg-info/
+.ruff_cache/
 
-# playwright 浏览器内核（项目本地）
-.pw-browsers/
+# 本机浏览器登录产生的独立 profile（不入库）
+data/browser_profile/
 
 # musicdl 搜索产物
 musicdl_outputs/
+
+# 日志与临时文件
+data/logs/
+*.part

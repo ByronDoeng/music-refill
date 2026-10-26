@@ -1,6 +1,6 @@
 """缺口判定：歌单曲目 × 云盘比对 → 需补歌曲清单。
 
-判定规则（与 docs/plan.md FR-3 一致）：
+判定规则：
   fee==1(VIP) / fee==4(需购买专辑) / privilege.st<0(下架或无版权) / privilege.pl==0(无播放权限)
   且 songId 不在云盘 → 记为缺口。
 """

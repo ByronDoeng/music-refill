@@ -1,13 +1,16 @@
-"""音源适配器模板（复制到项目根目录 sources_local/ 下并去掉下划线前缀生效）。
+"""音源适配器模板（复制到 sources_local/ 下并去掉下划线前缀生效）。
 
 步骤：
-1. mkdir sources_local  （该目录被 .gitignore 排除，实现永远不进仓库）
+1. mkdir -p sources_local  （仓库已自带该目录与酷我/咪咕实现）
 2. cp music_refill/sources/_template.py sources_local/my_source.py
 3. 实现三个成员：name / quality_ceiling / health_check / search
-4. 重启服务，GUI 与 /api/sources 即可看到新源
+4. 调用 POST /api/sources/reload 或重启服务，即可看到新源
 
-接口约定见同目录 base.py。社区可参考的现成实现：
-lx-music 自定义源（JS）、musicdl（pip 包，本项目的 requirements 已含）等。
+重要：musicdl 客户端请在 search() 里懒创建（不要放模块顶层/__init__），
+这样主程序才能把它的中间产物目录改到 data/musicdl，避免仓库根目录膨胀。
+
+接口约定见 music_refill/sources/base.py。也可以把 [sources].dirs 配成多个目录，
+叠加加载；后加载的同名源覆盖前者，方便只替换单个音源。
 """
 from __future__ import annotations
 
@@ -24,6 +27,9 @@ class MySource:
             return bool(self.search("晴天", limit=1))
         except Exception:
             return False
+
+    def search(self, title: str, artist: str = "", limit: int = 5):
+        raise NotImplementedError("实现 search：返回 list[SourceTrack]")
 
     def search(self, title: str, artist: str = "", limit: int = 5) -> list[SourceTrack]:
         # TODO: 请求你的音源接口，把结果映射为 SourceTrack

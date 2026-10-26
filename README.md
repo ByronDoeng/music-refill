@@ -1,62 +1,147 @@
-# music-refill · 网易云音乐云盘补歌助手
+# music-refill
 
-网易云音乐里 VIP / 无版权的歌听不了？常见做法是手动找免费音源下载、再传到网易云盘（云盘内容不受版权限制）。但一首一首找、下、传，太折腾。
+把听不了的歌，补进网易云音乐云盘。
 
-**music-refill** 把这条流水线自动化：扫描你的歌单 → 找出听不了的 → 从可插拔的免费音源匹配 → 人工确认 → 自动下载、打标、上传云盘。
+扫描歌单找出缺口，按歌名匹配可下载音源，人工确认后自动完成 **下载 → 打标 → 上传 → 校验**。本机运行，只监听 `127.0.0.1`。
 
-## 它能干什么
+[快速开始](#快速开始) · [工作原理](#工作原理) · [配置](#配置) · [开发文档](docs/architecture.md) · [API](docs/API.md) · [已知限制](docs/STATUS.md)
 
-- **缺口扫描**：扫描你选择的任意歌单（包括「我喜欢的音乐」），用官方播放接口终审每首歌当前是否真的可播（限免/VIP 标签不算数），只留真缺口
-- **云盘比对**：已在你云盘里的自动跳过；「疑似已有」（同歌名文件）单独分组显示云盘文件信息，默认不选，人工判断
-- **多音源匹配**：咪咕/酷我等可插拔音源并发搜索；歌名剥括号（`歌名(Live)` → `歌名`）
-- **人工确认**：分批次确认，左侧缺口信息、右侧候选下拉框（来源/标题/歌手/专辑/音质/时长/得分），勾选后才处理——错歌进不了云盘
-- **自动下载 + 打标 + 上传**：后台队列执行，实时进度（下载速度、上传耗时、秒传命中标记），失败自动重试
-- **报告落盘**：每次扫描生成 markdown 缺口清单，可导出
+## 功能
 
-## 特点
+- **歌单补歌**：扫描歌单，先看缺口清单；云盘疑似已有会优先标注，再由你决定补哪些。
+- **搜索补歌**：输入“歌名 + 歌手”直接搜音源，候选分页展示，勾选后加入下载队列。
+- **可插拔音源**：自带酷我、咪咕适配器；可叠加多个目录、单独覆盖或停用某个源。
+- **人工把关**：匹配结果按页确认，逐首选择版本与音质，默认不自动入队。
+- **后台队列**：全局任务栏持续显示匹配、下载、上传和校验进度；任务持久化，重启可续跑。
+- **本机浏览器登录**：复用 Chrome / Edge / Chromium 的登录态，不附带浏览器内核。
 
-- **本地运行**：一个命令启动网页界面，只监听 127.0.0.1，关掉即无任何后台行为
-- **凭证安全**：登录 cookie 只存本地 `data/`（gitignore），除 music.163.com 外不发给任何一方
-- **限速防风控**：搜索/下载/上传全链路随机间隔，单批 ≤50 首，遇服务端限流自动退避
-- **音源隔离**：音源适配器放在 `sources_local/`（永不进 git），仓库本身零音源；接口挂了丢个新 `.py` 文件即可换源，主程序零改动
-- **支持秒传**：文件 MD5 已被网易收录时零流量完成上传
+## 快速开始
 
-## 快速使用
+需要 **Python 3.11+**；登录需要本机安装 Chrome、Edge 或 Chromium。
 
-要求：Python 3.11+。
-
-**Windows**：双击 `start.bat`（首次自动创建虚拟环境并装依赖），浏览器会自动打开。
-
-**Linux / macOS**：
-
+Windows：
+```bat
+start.bat
+```
+Linux / macOS：
 ```bash
 ./start.sh
 ```
 
-然后访问 http://127.0.0.1:18123 ：
+首次启动会自动创建 `.venv` 并安装依赖。服务就绪后自动打开 [http://127.0.0.1:18123](http://127.0.0.1:18123)。
 
-1. **登录**：一键登录（弹出官方页面，登录后自动抓取）／手动粘贴 Cookie ／扫码（受网易风控影响时用前两种）
-2. **扫描**：勾选歌单 → 扫描缺口 → 在清单里核对
-3. **匹配**：勾选要补的歌 → 后台自动搜索音源 → 每批 10 首确认候选（可下拉换版本）
-4. **补歌**：确认后入队，后台自动下载、打标、上传；完成后去网易云客户端「云盘」页查看
+停止服务：
+```bat
+stop.bat
+```
+```bash
+./stop.sh
+```
 
-## 添加音源
+也可以直接使用命令行：
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt   # Windows 用 .venv\Scripts\pip
+.venv/bin/python -m music_refill launch     # 静默启动并打开网页
+.venv/bin/python -m music_refill serve      # 前台运行，便于看日志
+.venv/bin/python -m music_refill doctor     # 环境与音源自检
+```
 
-仓库出于合规不带任何音源实现。添加方式：复制 `music_refill/sources/_template.py` 到 `sources_local/your_source.py`，实现 `search()` 返回候选列表即可（详见模板内注释）。换源、加源都不需要改主程序。
+## 工作原理
+
+```text
+登录 → 选择歌单 / 搜索歌名
+     → 找缺口或音源候选
+     → 人工确认版本与音质
+     → SQLite 任务队列
+     → 下载 → 写入标签 → 上传云盘 → 校验
+```
+
+- 缺口判定以播放地址为准，`fee/privilege` 只用于解释原因。
+- 匹配优先比较歌名，歌手和时长作为辅助；Live、翻唱等变体会降权。
+- 每首歌的音质在候选版本内选择，按“精确 → 更近的更高档 → 更近的更低档”回退。
+- 音源搜索按“标题 → 标题 + 歌手 → 标题 + 主歌手”生成查询；多源并行，命中标题后提前停止。
+- 下载任务写入 SQLite 后再进入后台队列，服务重启不会丢队列。
+
+## 添加或替换音源
+
+适配器放在 `sources_local/`，每个文件独立注册一个音源。主程序只依赖 `music_refill/sources/base.py` 的协议，不关心具体实现。
+
+1. 复制 `music_refill/sources/_template.py` 为 `sources_local/your_source.py`。
+2. 实现 `name`、`quality_ceiling`、`health_check()`、`search()`。
+3. 调用 `POST /api/sources/reload`，或重启服务，即可在 `/api/sources` 看到新源。
+
+需要组合或切换时，在 `config.toml` 指定目录：
+```toml
+[sources]
+dirs = ["sources_local", "my_sources"]   # 后者覆盖同名源
+enabled = []                             # 空 = 全部启用
+disabled = []                            # 临时停用某个源
+order = ["kuwo", "migu"]
+```
+
+只替换酷我时，新建 `my_sources/kuwo.py` 即可，不需要复制咪咕；改完调用
+`POST /api/sources/reload` 让新集合生效，无需重启进程。
+
+适配器搜索失败只会影响自己的候选，不会拖垮其它音源。要实现更快的“先列元信息、再解析下载地址”，可额外提供 `quick_search()` 和 `resolve_many()`；不实现也能工作。
 
 ## 配置
 
-复制 `config.example.toml` 为 `config.toml`（可选）：端口、默认音质上限（flac/320/128）、单批数量、限速区间等。
+复制 `config.example.toml` 为 `config.toml`（本地生效，不入库）。常用项：
 
-## 目录结构
+```toml
+[server]
+host = "127.0.0.1"
+port = 18123
 
+[scan]
+quality = "flac"                 # 默认音质：flac | 320 | 128
+limit = 50                       # 单批入队上限
+source_search_timeout_s = 30     # 音源搜索总上限
+source_search_first_batch_s = 3  # 先返回已完成音源，慢源随后合并
+
+[sources]
+dirs = ["sources_local"]
+enabled = []
+disabled = []
+order = ["kuwo", "migu"]
+
+[browser]
+executable = ""                  # 留空自动查找 Chrome/Edge
+debug_port = 9222
 ```
-music_refill/     主程序（netease 接口/缺口判定/音源协议/打标/上传/Web 界面）
-sources_local/    音源适配器（本地，gitignore）
-data/             运行数据：cookie、SQLite 记录、下载缓存、报告（gitignore）
-start.bat/sh      一键启动
+
+完整字段见 `config.example.toml`。
+
+## 数据与安全
+
+- 运行数据放在 `data/`：Cookie、SQLite、日志、下载缓存、报告。`data/` 和 `config.toml` 已加入 `.gitignore`。
+- 服务默认只监听 `127.0.0.1`，没有远程鉴权；不要把端口暴露到局域网或公网。
+- 登录 Cookie 只保存在本机；日志不输出 Cookie 内容。
+- “清除本地缓存”只删除 `data/downloads/`，不会删除云盘歌曲。
+
+## 开发
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+测试使用临时数据目录，不会读写真实账号数据。
+
+## 目录
+
+```text
+music_refill/     核心程序：网易接口、缺口判定、匹配、下载上传、Web API
+  netease/        登录、会话、云盘上传
+  core/           缺口、打分、下载与标签
+  sources/        音源协议与动态加载器
+  web/            FastAPI + 单页前端
+sources_local/    自带音源适配器
+docs/             架构、API、状态与已知限制
+tests/            配置、队列、接口与加载器测试
 ```
 
 ## 声明
 
-仅供个人学习与研究使用。请尊重音乐版权，支持正版；上传内容与账号风险由使用者自行承担。
+仅供个人学习与研究使用。请遵守音乐平台服务条款与版权要求，支持正版。使用产生的账号与内容风险由使用者自行承担。

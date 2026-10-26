@@ -9,14 +9,33 @@
 <body>
 <main class="wrap">
   <header class="topbar">
-    <div class="brand"><span class="dot"></span>music-refill</div>
+    <button id="brand" class="brand" type="button" aria-label="返回 Dashboard">
+      <span class="dot"></span>music-refill
+    </button>
     <div class="userbox">
       <div id="account" class="chip">检查登录中…</div>
       <button id="btn-logout" class="btn ghost small hidden">退出登录</button>
     </div>
   </header>
 
-  <!-- ① 登录 -->
+  <!-- 全局任务栏：登录后所有页面可见 -->
+  <section id="taskbar" class="taskbar hidden" aria-live="polite">
+    <button id="taskbar-toggle" class="taskbar-summary" type="button" aria-expanded="false">
+      <span id="taskbar-main">暂无后台任务</span>
+      <span id="taskbar-meta" class="muted small"></span>
+      <span class="taskbar-caret">⌃</span>
+    </button>
+    <div id="taskbar-detail" class="taskbar-detail hidden">
+      <div class="bar"><i id="taskbar-fill"></i></div>
+      <div id="taskbar-results" class="small"></div>
+      <div class="row">
+        <button id="btn-clear-cache" class="btn ghost small">清除本地缓存</button>
+        <button id="btn-retry-failed" class="btn ghost small">重试失败任务</button>
+        <span id="clear-hint" class="muted small"></span>
+      </div>
+    </div>
+  </section>
+
   <section id="login-card" class="card hidden">
     <h2>登录</h2>
     <div class="row">
@@ -37,58 +56,125 @@
       <div id="qr-hint" class="muted">生成中…</div></div>
   </section>
 
-  <!-- ② 歌单 -->
-  <section id="pl-card" class="card hidden">
-    <h2>① 选择要扫描的歌单</h2>
+  <section id="dashboard-card" class="hidden">
+    <div class="hero">
+      <h1>今天要补哪一批歌？</h1>
+      <p class="muted">两条流程互不影响；所有下载任务都会进入顶部任务栏。</p>
+    </div>
+    <div class="flow-grid">
+      <button class="flow-card" type="button" data-go="playlist">
+        <span class="flow-kicker">PLAYLIST</span>
+        <b>歌单补歌</b>
+        <span class="muted">选择歌单 → 扫描缺口 → 勾选要补的歌 → 逐页匹配确认</span>
+      </button>
+      <button class="flow-card" type="button" data-go="search">
+        <span class="flow-kicker">SEARCH</span>
+        <b>搜索补歌</b>
+        <span class="muted">输入关键词 → 直接搜索音源 → 挑选候选</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- 歌单补歌：选择歌单 -->
+  <section id="playlist-card" class="card view hidden" data-view="playlist">
+    <div class="view-head">
+      <div><span class="eyebrow">歌单补歌</span><h2>选择要扫描的歌单</h2></div>
+      <button class="btn ghost small" data-go="dashboard">返回 Dashboard</button>
+    </div>
     <p class="muted">「我喜欢的音乐」默认勾选、可取消；可任意组合。</p>
     <div id="pl-list" class="pl-list">加载中…</div>
     <div class="row">
-      <button id="btn-scan" class="btn primary">② 扫描缺口</button>
+      <button id="btn-scan" class="btn primary">扫描缺口</button>
       <span id="scan-hint" class="muted"></span>
     </div>
   </section>
 
-  <!-- ③ 缺口清单 -->
-  <section id="gap-card" class="card hidden">
-    <h2>③ 缺口清单 <span id="gap-count" class="muted small"></span></h2>
+  <!-- 歌单补歌：缺口清单 -->
+  <section id="gap-card" class="card view hidden" data-view="gaps">
+    <div class="view-head">
+      <div><span class="eyebrow">歌单补歌</span><h2>缺口清单 <span id="gap-count" class="muted small"></span></h2></div>
+      <button class="btn ghost small" data-go="gaps">返回缺口清单</button>
+    </div>
     <div id="res-summary" class="stats"></div>
+    <p class="muted small">确认后再为选中歌曲匹配音源。云盘疑似已有的歌曲会优先显示，并在原因栏标注。</p>
     <div class="table-box"><table id="gap-table">
       <thead><tr><th>选</th><th>#</th><th>歌曲</th><th>歌手</th><th>专辑</th><th>时长</th><th>原因</th><th>云盘疑似文件</th><th>歌单</th></tr></thead>
       <tbody></tbody>
     </table></div>
-    <div class="row">
+    <div class="row pager">
       <button id="btn-sel-all" class="btn ghost">全选</button>
       <button id="btn-sel-none" class="btn ghost">全不选</button>
       <a id="report-link" class="btn ghost" href="#" download>导出报告</a>
-      <button id="btn-start-match" class="btn primary" disabled>④ 开始寻找匹配音源</button>
+      <span class="spacer"></span>
+      <button id="btn-start-match" class="btn primary" disabled>为选中歌曲匹配音源</button>
       <span id="gap-hint" class="muted"></span>
     </div>
   </section>
 
-  <!-- ④ 匹配确认 -->
-  <section id="match-card" class="card hidden">
-    <h2>④ 音源匹配 · 人工确认</h2>
-    <div id="match-progress" class="muted">准备中…</div>
+  <!-- 歌单补歌：匹配确认（10 首/页） -->
+  <section id="match-card" class="card view hidden" data-view="match">
+    <div class="view-head">
+      <div><span class="eyebrow">歌单补歌</span><h2>音源匹配与确认</h2></div>
+      <button class="btn ghost small" data-go="playlist">返回歌单</button>
+    </div>
+    <div class="match-status">
+      <div class="row compact">
+        <div class="bar"><i id="match-fill"></i></div>
+        <span id="match-progress" class="muted small">准备中…</span>
+      </div>
+      <div id="match-current" class="muted small"></div>
+    </div>
+    <p class="muted small">后台会边匹配边显示；匹配完成前翻页只包含已就绪的歌曲。</p>
     <div class="table-box"><table id="match-table">
-      <thead><tr><th style="width:36px">选</th><th class="col-song">缺口歌曲</th><th class="col-cand">候选（下拉切换，选认可的版本）</th></tr></thead>
+      <thead><tr><th class="col-check">选</th><th class="col-song">缺口歌曲</th><th class="col-cand">音源版本</th><th class="col-quality">音质</th></tr></thead>
       <tbody></tbody>
     </table></div>
-    <div class="row">
-      <button id="btn-download" class="btn primary" disabled>⑤ 下载并上传这批（后台执行）</button>
-      <button id="btn-skip" class="btn ghost">跳过本批 →</button>
+    <div class="row pager">
+      <button id="btn-prev" class="btn ghost" disabled>上一页</button>
+      <span id="page-label" class="muted small"></span>
+      <button id="btn-next" class="btn ghost" disabled>下一页</button>
+      <span class="spacer"></span>
+      <button id="btn-page-all" class="btn ghost">本页全选</button>
+      <button id="btn-page-none" class="btn ghost">本页全不选</button>
+      <button id="btn-queue-page" class="btn primary">加入下载队列（本页）</button>
       <span id="match-hint" class="muted"></span>
     </div>
   </section>
 
-  <!-- ⑤ 后台进度 -->
-  <section id="progress-card" class="card hidden">
-    <h2>⑤ 后台下载/上传</h2>
-    <div class="bar"><i id="prog-fill"></i></div>
-    <div id="prog-text" class="muted small">空闲</div>
-    <div id="prog-results" class="small"></div>
+  <!-- 搜索补歌：关键词直搜音源 -->
+  <section id="search-card" class="card view hidden" data-view="search">
+    <div class="view-head">
+      <div><span class="eyebrow">搜索补歌</span><h2>直接搜索音源</h2></div>
+      <button class="btn ghost small" data-go="dashboard">返回 Dashboard</button>
+    </div>
+    <p class="muted">输入歌名或“歌名 + 歌手”，直接列出各音源候选；音质下拉只显示该版本实际可用的音质。</p>
     <div class="row">
-      <button id="btn-clear-cache" class="btn ghost">清除本地缓存（删除已下载文件）</button>
-      <span id="clear-hint" class="muted small"></span>
+      <input id="search-input" class="text-input" placeholder="歌名 / 歌名 + 歌手，例如：晴天 周杰伦">
+      <button id="btn-search" class="btn primary">搜索</button>
+      <span id="search-hint" class="muted"></span>
+    </div>
+    <div class="row compact">
+      <label class="inline-field">统一音质（默认：<span id="default-quality-label">FLAC</span>）
+        <select id="search-quality" class="select">
+          <option value="flac">FLAC</option>
+          <option value="320">320kbps</option>
+          <option value="128">128kbps</option>
+        </select>
+      </label>
+      <button id="btn-apply-quality" class="btn ghost small" disabled>应用到本页</button>
+    </div>
+    <div class="table-box"><table id="search-table">
+      <thead><tr><th class="col-check">选</th><th>音源版本</th><th class="col-quality">音质（默认）</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="row pager">
+      <button id="btn-search-prev" class="btn ghost" disabled>上一页</button>
+      <span id="search-page-label" class="muted small"></span>
+      <button id="btn-search-next" class="btn ghost" disabled>下一页</button>
+      <span class="spacer"></span>
+      <button id="btn-search-page-all" class="btn ghost">本页全选</button>
+      <button id="btn-search-page-none" class="btn ghost">本页全不选</button>
+      <button id="btn-queue-search" class="btn primary" disabled>加入下载队列</button>
     </div>
   </section>
 

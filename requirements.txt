@@ -1,8 +1,8 @@
 fastapi>=0.115
-httpx2  # fastapi TestClient 依赖（仅测试用）
 mutagen>=1.47
 pycryptodome>=3.20
 qrcode[pil]>=7.4
 requests>=2.32
 uvicorn[standard]>=0.30
 musicdl>=2.14
+websocket-client>=1.7  # 本机浏览器登录：最小 CDP 客户端

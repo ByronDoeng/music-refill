@@ -150,5 +150,9 @@ def upload_cloud_file(
         # check.songId 为纯数字 = 秒传命中已有曲库条目；长哈希 = 私有资源 id（匹配与否以客户端云盘页为准）
         "matched_library": song_id.isdigit() and song_id != "0",
         "need_upload": need_upload,
+        "md5": md5,
+        "file_name": filename,
+        "size_bytes": size,
+        "ext": ext,
         "private_resource_id": check.get("songId"),
     }

@@ -5,16 +5,40 @@ host = "127.0.0.1"
 port = 18123
 
 [scan]
-include_liked = true        # 必含"我喜欢的音乐"
-playlist_ids = []           # 额外固定扫描的歌单 ID（网页里可临时勾选）
-quality = "flac"            # 音质上限: flac | 320 | 128
-limit = 50                  # 单次上传上限
-sleep_min = 3               # 每首间隔随机区间（秒）
+include_liked = true          # 默认勾选「我喜欢的音乐」
+playlist_ids = []             # 额外固定扫描的歌单 ID（网页里可临时勾选）
+quality = "flac"              # 音质上限: flac | 320 | 128
+limit = 50                    # 单批上传上限（1~50）
+sleep_min = 3                 # 每首处理后的随机间隔（秒）
 sleep_max = 10
+match_sleep_min = 0.5         # 匹配阶段每首间隔
+match_sleep_max = 1.5
+match_source_timeout_s = 30   # 单首歌等待音源的上限（秒）；超时保留已完成候选
+source_search_timeout_s = 30  # 搜索补歌等待音源的上限（秒）
+source_search_first_batch_s = 3  # 先返回已完成音源；慢源随后再合并
+upload_attempts = 2           # 单个任务最多尝试次数（含首次）
+retry_backoff_s = 5           # 指数退避基数
+retry_backoff_max_s = 40      # 退避上限（对应“接口频繁”等限流）
+quick_add_min_score = 1.15    # 按歌名快速补歌：达到此分才跳过人工确认直接入队
 
 [paths]
-data_dir = "data"           # cookie、报告、SQLite 所在目录
+data_dir = "data"             # cookie、日志、SQLite、下载缓存、报告
 
-# 音源 fallback 顺序（对应 sources_local/ 里的文件名，M2 生效）
+[browser]
+executable = ""               # 留空自动查找 Chrome/Edge/Chromium
+debug_port = 9222             # 本机浏览器调试端口（只监听 127.0.0.1）
+login_timeout_s = 300         # 等待登录超时（秒）
+
 [sources]
-order = []
+# 仓库自带 sources_local/kuwo.py、migu.py。
+# dirs 会按顺序叠加，后面的目录覆盖同名源；只覆盖一个源时不必复制整目录。
+# 相对路径以项目根目录为基准；留空等同 ["sources_local"]。
+dirs = ["sources_local"]
+# 只启用这些注册名；留空 = 全部启用。适合临时停用某个源而不删文件。
+enabled = []
+# 强制停用；优先级高于 enabled。
+disabled = []
+# 音源优先级（对应适配器里的 name）；未列出的排在后面
+order = ["kuwo", "migu"]
+# 兼容旧配置：单目录。dirs 非空时忽略此项。
+# dir = "sources_local"
