@@ -13,6 +13,7 @@
 - **可插拔音源**：自带酷我、咪咕适配器；可叠加多个目录、单独覆盖或停用某个源。
 - **人工把关**：匹配结果按页确认，逐首选择版本与音质，默认不自动入队。
 - **后台队列**：全局任务栏持续显示匹配、下载、上传和校验进度；任务持久化，重启可续跑。
+- **支持秒传**：上传前先用文件 MD5 走 `upload/check`，命中已有资源时跳过文件传输；未命中则自动走 NOS 直传。
 - **本机浏览器登录**：复用 Chrome / Edge / Chromium 的登录态，不附带浏览器内核。
 
 ## 快速开始
@@ -62,6 +63,7 @@ python -m venv .venv
 - 每首歌的音质在候选版本内选择，按“精确 → 更近的更高档 → 更近的更低档”回退。
 - 音源搜索按“标题 → 标题 + 歌手 → 标题 + 主歌手”生成查询；多源并行，命中标题后提前停止。
 - 下载任务写入 SQLite 后再进入后台队列，服务重启不会丢队列。
+- 上传始终先做秒传检查。命中时只登记元数据；未命中才上传文件。秒传是否命中取决于网易服务器是否已有相同 MD5。
 
 ## 添加或替换音源
 
@@ -145,3 +147,9 @@ tests/            配置、队列、接口与加载器测试
 ## 声明
 
 仅供个人学习与研究使用。请遵守音乐平台服务条款与版权要求，支持正版。使用产生的账号与内容风险由使用者自行承担。
+
+## 参考与依赖
+
+- [NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)：云盘上传流程（`upload/check`、NOS 直传、`info/v2`、`pub/v2`）与 WEAPI 调用方式的参考实现。
+- [CharlesPikachu/musicdl](https://github.com/CharlesPikachu/musicdl)：本项目的音源 SDK，酷我/咪咕适配器在其客户端基础上做了搜索与解析拆分。
+- [Binaryify/NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)：网易云 WEAPI 社区实现的早期参考。
